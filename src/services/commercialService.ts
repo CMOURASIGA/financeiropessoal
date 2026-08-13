@@ -1,7 +1,11 @@
 import { supabase } from '../lib/supabase';
+import { COMPANY_NAME, CONSULT_LOGO_URL } from '../lib/brand';
 
 export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer';
-export type HouseholdBrand = { displayName: string; logoUrl: string; primaryColor: string; accentColor: string };
+export type HouseholdBrand = {
+  displayName: string; logoUrl: string; primaryColor: string; accentColor: string;
+  sidebarColor?: string; softColor?: string; contrastColor?: string;
+};
 export type CommercialSettings = {
   id: string; name: string; status: string; plan: string; licensedUsers: number;
   trialEndsAt?: string; subscriptionEndsAt?: string; role: MemberRole; branding: HouseholdBrand;
@@ -9,8 +13,35 @@ export type CommercialSettings = {
 export type HouseholdMember = { user_id: string; display_name: string; role: MemberRole; active: boolean };
 export type HouseholdInvite = { id: string; email: string; role: MemberRole; status: string; expires_at: string };
 
-const defaults: HouseholdBrand = { displayName: 'MeuLar Finanças', logoUrl: '', primaryColor: '#059669', accentColor: '#0f766e' };
+export const CONSULT_SERVICES_BRAND: HouseholdBrand = {
+  displayName: COMPANY_NAME, logoUrl: CONSULT_LOGO_URL, primaryColor: '#003B73', accentColor: '#00AEEF',
+  sidebarColor: '#002C55', softColor: '#E1F4FC', contrastColor: '#FFFFFF'
+};
+const defaults = CONSULT_SERVICES_BRAND;
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
+
+const normalizeHex = (value: string | undefined, fallback: string) => /^#[0-9a-f]{6}$/i.test(value || '') ? value!.toUpperCase() : fallback;
+const rgb = (color: string) => { const value = normalizeHex(color, '#003B73').slice(1); return [0, 2, 4].map(index => Number.parseInt(value.slice(index, index + 2), 16)); };
+const hex = (values: number[]) => `#${values.map(value => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+const mix = (color: string, target: string, amount: number) => { const source = rgb(color); const destination = rgb(target); return hex(source.map((value, index) => value + (destination[index] - value) * amount)); };
+
+export function deriveBrandPalette(primaryColor: string, accentColor: string): HouseholdBrand {
+  const primary = normalizeHex(primaryColor, defaults.primaryColor);
+  const accent = normalizeHex(accentColor, defaults.accentColor);
+  const [red, green, blue] = rgb(primary);
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+  return {
+    displayName: defaults.displayName, logoUrl: defaults.logoUrl, primaryColor: primary, accentColor: accent,
+    sidebarColor: mix(primary, '#111827', luminance > 0.45 ? 0.68 : 0.38),
+    softColor: mix(primary, '#FFFFFF', 0.9), contrastColor: luminance > 0.58 ? '#172033' : '#FFFFFF'
+  };
+}
+
+export function completeBrand(brand?: Partial<HouseholdBrand>) {
+  const value = { ...defaults, ...brand };
+  const palette = deriveBrandPalette(value.primaryColor, value.accentColor);
+  return { ...value, sidebarColor: value.sidebarColor || palette.sidebarColor, softColor: value.softColor || palette.softColor, contrastColor: value.contrastColor || palette.contrastColor };
+}
 
 async function membership() {
   const result = await supabase!.from('pf_household_members').select('household_id, role').eq('active', true).limit(1).single();
@@ -18,9 +49,14 @@ async function membership() {
 }
 
 export function applyBrand(brand?: Partial<HouseholdBrand>) {
-  const value = { ...defaults, ...brand };
-  document.documentElement.style.setProperty('--family-primary', value.primaryColor);
-  document.documentElement.style.setProperty('--family-accent', value.accentColor);
+  const value = completeBrand(brand);
+  const root = document.documentElement.style;
+  root.setProperty('--family-primary', value.primaryColor);
+  root.setProperty('--family-accent', value.accentColor);
+  root.setProperty('--family-sidebar', value.sidebarColor!);
+  root.setProperty('--family-soft', value.softColor!);
+  root.setProperty('--family-contrast', value.contrastColor!);
+  root.setProperty('--family-border', mix(value.primaryColor, '#FFFFFF', 0.65));
   return value;
 }
 

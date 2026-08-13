@@ -7,6 +7,7 @@ import { HouseholdSetup } from './components/HouseholdSetup';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { transactionService } from './services/transactionService';
 import { commercialService } from './services/commercialService';
+import { PRODUCT_NAME } from './lib/brand';
 
 type ViewState = 'landing' | 'dashboard';
 
@@ -21,7 +22,7 @@ function App() {
     const result = await transactionService.initializeCloudContext();
     if (result) {
       const commercial = await commercialService.getSettings();
-      document.title = commercial.branding.displayName;
+      document.title = `${PRODUCT_NAME} | ${commercial.branding.displayName}`;
     }
     setHousehold(result);
     setUser(currentUser);

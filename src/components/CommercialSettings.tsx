@@ -1,27 +1,117 @@
-import React, { useEffect, useState } from 'react';
-import { commercialService, CommercialSettings, HouseholdInvite, HouseholdMember, MemberRole } from '../services/commercialService';
+import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { commercialService, CommercialSettings, CONSULT_SERVICES_BRAND, deriveBrandPalette, HouseholdInvite, HouseholdMember, MemberRole } from '../services/commercialService';
+import { PRODUCT_NAME, PRODUCT_OWNER, PRODUCT_SUBTITLE } from '../lib/brand';
 import { Button } from './ui/Button';
-import { Building2, CreditCard, Palette, ShieldCheck, Upload, Users, X } from 'lucide-react';
+import { Building2, CreditCard, Palette, RotateCcw, ShieldCheck, Upload, Users, X } from 'lucide-react';
+
+type Tab = 'client' | 'users' | 'brand' | 'plan';
+
+function extractLogoColors(file: File, callback: (primary: string, accent: string) => void) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 80; canvas.height = 80;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) return;
+      context.drawImage(image, 0, 0, 80, 80);
+      const pixels = context.getImageData(0, 0, 80, 80).data;
+      const colors = new Map<string, number>();
+      for (let index = 0; index < pixels.length; index += 16) {
+        if (pixels[index + 3] < 180) continue;
+        const values = [pixels[index], pixels[index + 1], pixels[index + 2]].map(value => Math.min(255, Math.round(value / 24) * 24));
+        if (values.reduce((sum, value) => sum + value, 0) > 690 || values.reduce((sum, value) => sum + value, 0) < 70) continue;
+        const key = `#${values.map(value => value.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+        colors.set(key, (colors.get(key) || 0) + 1);
+      }
+      const ranked = [...colors.entries()].sort((a, b) => b[1] - a[1]).map(([color]) => color);
+      if (ranked[0]) callback(ranked[0], ranked[1] || ranked[0]);
+    };
+    image.src = String(reader.result);
+  };
+  reader.readAsDataURL(file);
+}
 
 export const CommercialSettingsModal: React.FC<{ open: boolean; onClose: () => void; onBrandUpdated: () => void }> = ({ open, onClose, onBrandUpdated }) => {
-  const [tab, setTab] = useState<'client'|'users'|'brand'|'plan'>('client');
+  const [tab, setTab] = useState<Tab>('client');
   const [settings, setSettings] = useState<CommercialSettings | null>(null);
-  const [members, setMembers] = useState<HouseholdMember[]>([]); const [invites, setInvites] = useState<HouseholdInvite[]>([]);
-  const [email, setEmail] = useState(''); const [role, setRole] = useState<MemberRole>('member'); const [message, setMessage] = useState('');
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
+  const [invites, setInvites] = useState<HouseholdInvite[]>([]);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<MemberRole>('member');
+  const [message, setMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
   const canManage = settings?.role === 'owner' || settings?.role === 'admin';
-  const load = async () => { const current = await commercialService.getSettings(); setSettings(current); if (canManage || current.role === 'owner' || current.role === 'admin') { const data = await commercialService.getMembers(current.id); setMembers(data.members); setInvites(data.invites); } };
-  useEffect(() => { if (open) load().catch(e => setMessage(e.message)); }, [open]);
+
+  const load = async () => {
+    const current = await commercialService.getSettings();
+    setSettings(current);
+    if (current.role === 'owner' || current.role === 'admin') {
+      const data = await commercialService.getMembers(current.id);
+      setMembers(data.members); setInvites(data.invites);
+    }
+  };
+  useEffect(() => { if (open) void load().catch(error => setMessage(error.message)); }, [open]);
+
+  const palette = useMemo(() => settings ? deriveBrandPalette(settings.branding.primaryColor, settings.branding.accentColor) : CONSULT_SERVICES_BRAND, [settings?.branding.primaryColor, settings?.branding.accentColor]);
   if (!open || !settings) return null;
-  const save = async () => { setMessage(''); try { await commercialService.updateSettings(settings); setMessage('Configurações atualizadas.'); onBrandUpdated(); } catch (e) { setMessage(e instanceof Error ? e.message : 'Falha ao salvar.'); } };
-  const tabs = [{id:'client',label:'Cliente',icon:Building2},{id:'users',label:'Usuários',icon:Users},{id:'brand',label:'Identidade',icon:Palette},{id:'plan',label:'Plano',icon:CreditCard}] as const;
-  return <div className="fixed inset-0 z-50 bg-slate-950/60 p-4 overflow-y-auto"><div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
-    <header className="p-5 border-b flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Configurações do cliente</p><h2 className="text-2xl font-bold">{settings.name}</h2></div><button onClick={onClose}><X /></button></header>
-    <div className="grid md:grid-cols-[210px_1fr] min-h-[520px]"><nav className="bg-slate-50 border-r p-3">{tabs.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold ${tab===item.id?'bg-emerald-600 text-white':'text-slate-600 hover:bg-white'}`}><item.icon className="w-4 h-4"/>{item.label}</button>)}</nav>
+
+  const updateBrand = (patch: Partial<CommercialSettings['branding']>) => setSettings(current => current ? ({ ...current, branding: { ...current.branding, ...patch } }) : current);
+  const save = async () => {
+    setMessage('');
+    try {
+      const next = { ...settings, branding: { ...settings.branding, sidebarColor: palette.sidebarColor, softColor: palette.softColor, contrastColor: palette.contrastColor } };
+      await commercialService.updateSettings(next); setSettings(next);
+      setMessage('Configurações atualizadas.'); onBrandUpdated();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao salvar.'); }
+  };
+  const selectLogo = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setMessage('A logo deve ter no máximo 2 MB.'); return; }
+    setUploading(true); setMessage('Analisando cores e enviando a logo...');
+    extractLogoColors(file, (primaryColor, accentColor) => updateBrand({ primaryColor, accentColor, sidebarColor: undefined, softColor: undefined, contrastColor: undefined }));
+    try {
+      const logoUrl = await commercialService.uploadLogo(settings.id, file);
+      updateBrand({ logoUrl }); setMessage('Logo armazenada. Confira a prévia e salve a identidade.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha no envio da logo.'); }
+    finally { setUploading(false); }
+  };
+  const restoreConsult = () => {
+    setSettings({ ...settings, branding: { ...CONSULT_SERVICES_BRAND } });
+    setMessage('Identidade da Consult Services restaurada na prévia. Clique em salvar para confirmar.');
+  };
+  const tabs = [{ id: 'client', label: 'Cliente', icon: Building2 }, { id: 'users', label: 'Usuários', icon: Users }, { id: 'brand', label: 'White label', icon: Palette }, { id: 'plan', label: 'Plano', icon: CreditCard }] as const;
+
+  return <div className="fixed inset-0 z-50 bg-slate-950/60 p-4 overflow-y-auto"><div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <header className="p-5 border-b flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest family-accent-text">Administração do cliente</p><h2 className="text-2xl font-bold">{settings.name}</h2><p className="text-xs text-slate-500 mt-1">{PRODUCT_OWNER}</p></div><button onClick={onClose} className="rounded-lg border p-2"><X /></button></header>
+    <div className="grid md:grid-cols-[220px_1fr] min-h-[600px]"><nav className="bg-slate-50 border-r p-3">{tabs.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold mb-1 ${tab === item.id ? 'family-primary-bg' : 'text-slate-600 hover:bg-white'}`}><item.icon className="w-4 h-4" />{item.label}</button>)}</nav>
       <main className="p-6">
-        {tab==='client' && <div className="space-y-5"><h3 className="font-bold text-lg">Dados do espaço familiar</h3><label className="block text-sm font-semibold">Nome da família ou cliente<input disabled={!canManage} className="mt-1 w-full border rounded-lg p-3 font-normal" value={settings.name} onChange={e=>setSettings({...settings,name:e.target.value})}/></label><div className="rounded-xl bg-slate-50 border p-4 flex gap-3"><ShieldCheck className="text-emerald-600"/><div><strong>Dados isolados</strong><p className="text-sm text-slate-500">Receitas, despesas e orçamento pertencem exclusivamente a este cliente.</p></div></div>{canManage && <Button onClick={save}>Salvar dados</Button>}</div>}
-        {tab==='users' && <div className="space-y-5"><div><h3 className="font-bold text-lg">Usuários e acessos</h3><p className="text-sm text-slate-500">{members.filter(m=>m.active).length} de {settings.licensedUsers} licenças utilizadas.</p></div><div className="space-y-2">{members.map(member=><div key={member.user_id} className="border rounded-xl p-3 flex items-center justify-between gap-3"><div><strong>{member.display_name}</strong><p className="text-xs text-slate-500">{member.active?'Ativo':'Suspenso'}</p></div><div className="flex gap-2"><select disabled={!canManage || member.role==='owner'} value={member.role} onChange={async e=>{await commercialService.updateMember(settings.id,member.user_id,{role:e.target.value as MemberRole}); await load();}} className="border rounded-lg p-2 text-sm"><option value="owner">Proprietário</option><option value="admin">Administrador</option><option value="member">Membro</option><option value="viewer">Somente leitura</option></select>{canManage&&member.role!=='owner'&&<button onClick={async()=>{await commercialService.updateMember(settings.id,member.user_id,{active:!member.active});await load();}} className="text-xs font-bold text-rose-600">{member.active?'Suspender':'Reativar'}</button>}</div></div>)}</div>{canManage&&<form onSubmit={async e=>{e.preventDefault();try{await commercialService.invite(settings.id,email,role);setEmail('');setMessage('Convite criado.');await load();}catch(err){setMessage(err instanceof Error?err.message:'Falha no convite.');}}} className="grid md:grid-cols-[1fr_170px_auto] gap-2"><input required type="email" placeholder="email@exemplo.com" className="border rounded-lg p-3" value={email} onChange={e=>setEmail(e.target.value)}/><select className="border rounded-lg p-3" value={role} onChange={e=>setRole(e.target.value as MemberRole)}><option value="admin">Administrador</option><option value="member">Membro</option><option value="viewer">Somente leitura</option></select><Button>Convidar</Button></form>}<div className="space-y-1">{invites.filter(i=>i.status==='pending').map(i=><p key={i.id} className="text-sm text-slate-500">Convite pendente: {i.email} ({i.role})</p>)}</div></div>}
-        {tab==='brand' && <div className="space-y-5"><h3 className="font-bold text-lg">Identidade visual</h3><div className="border rounded-xl p-4 flex items-center gap-4">{settings.branding.logoUrl?<img src={settings.branding.logoUrl} className="w-20 h-20 object-contain rounded-xl"/>:<div className="w-20 h-20 bg-slate-100 rounded-xl flex items-center justify-center"><Palette/></div>}<label className="cursor-pointer text-sm font-bold text-emerald-700"><Upload className="inline w-4 h-4 mr-1"/>Enviar logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" disabled={!canManage} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;const url=await commercialService.uploadLogo(settings.id,file);setSettings({...settings,branding:{...settings.branding,logoUrl:url}});}}/></label></div><label className="block text-sm font-semibold">Nome exibido<input disabled={!canManage} className="mt-1 w-full border rounded-lg p-3" value={settings.branding.displayName} onChange={e=>setSettings({...settings,branding:{...settings.branding,displayName:e.target.value}})}/></label><div className="grid grid-cols-2 gap-4"><label className="text-sm font-semibold">Cor principal<input disabled={!canManage} type="color" className="mt-1 w-full h-12" value={settings.branding.primaryColor} onChange={e=>setSettings({...settings,branding:{...settings.branding,primaryColor:e.target.value}})}/></label><label className="text-sm font-semibold">Cor de destaque<input disabled={!canManage} type="color" className="mt-1 w-full h-12" value={settings.branding.accentColor} onChange={e=>setSettings({...settings,branding:{...settings.branding,accentColor:e.target.value}})}/></label></div>{canManage&&<Button onClick={save}>Aplicar identidade</Button>}</div>}
-        {tab==='plan' && <div className="space-y-5"><h3 className="font-bold text-lg">Plano e assinatura</h3><div className="grid sm:grid-cols-3 gap-3"><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">PLANO</span><strong className="block text-xl capitalize">{settings.plan}</strong></div><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">STATUS</span><strong className="block text-xl capitalize">{settings.status}</strong></div><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">USUÁRIOS</span><strong className="block text-xl">{settings.licensedUsers}</strong></div></div><p className="text-sm text-slate-500">A contratação e alteração do plano serão vinculadas ao meio de pagamento na próxima etapa comercial.</p></div>}
-        {message&&<p className="mt-5 p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">{message}</p>}
-      </main></div></div></div>;
+        {tab === 'client' && <div className="space-y-5"><h3 className="font-bold text-lg">Dados do espaço familiar</h3><label className="block text-sm font-semibold">Nome da família ou cliente<input disabled={!canManage} className="mt-1 w-full border rounded-lg p-3 font-normal" value={settings.name} onChange={event => setSettings({ ...settings, name: event.target.value })} /></label><div className="rounded-xl family-soft-bg family-brand-border border p-4 flex gap-3"><ShieldCheck className="family-accent-text" /><div><strong>Dados isolados</strong><p className="text-sm text-slate-500">Receitas, despesas e orçamento pertencem exclusivamente a este cliente.</p></div></div>{canManage && <Button onClick={save} className="family-primary-bg">Salvar dados</Button>}</div>}
+
+        {tab === 'users' && <div className="space-y-5"><div><h3 className="font-bold text-lg">Usuários e acessos</h3><p className="text-sm text-slate-500">{members.filter(member => member.active).length} de {settings.licensedUsers} licenças utilizadas.</p></div><div className="space-y-2">{members.map(member => <div key={member.user_id} className="border rounded-xl p-3 flex items-center justify-between gap-3"><div><strong>{member.display_name}</strong><p className="text-xs text-slate-500">{member.active ? 'Ativo' : 'Suspenso'}</p></div><div className="flex gap-2"><select disabled={!canManage || member.role === 'owner'} value={member.role} onChange={async event => { await commercialService.updateMember(settings.id, member.user_id, { role: event.target.value as MemberRole }); await load(); }} className="border rounded-lg p-2 text-sm"><option value="owner">Proprietário</option><option value="admin">Administrador</option><option value="member">Membro</option><option value="viewer">Somente leitura</option></select>{canManage && member.role !== 'owner' && <button onClick={async () => { await commercialService.updateMember(settings.id, member.user_id, { active: !member.active }); await load(); }} className="text-xs font-bold text-rose-600">{member.active ? 'Suspender' : 'Reativar'}</button>}</div></div>)}</div>{canManage && <form onSubmit={async event => { event.preventDefault(); try { await commercialService.invite(settings.id, email, role); setEmail(''); setMessage('Convite criado.'); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha no convite.'); } }} className="grid md:grid-cols-[1fr_170px_auto] gap-2"><input required type="email" placeholder="email@exemplo.com" className="border rounded-lg p-3" value={email} onChange={event => setEmail(event.target.value)} /><select className="border rounded-lg p-3" value={role} onChange={event => setRole(event.target.value as MemberRole)}><option value="admin">Administrador</option><option value="member">Membro</option><option value="viewer">Somente leitura</option></select><Button className="family-primary-bg">Convidar</Button></form>}<div className="space-y-1">{invites.filter(invite => invite.status === 'pending').map(invite => <p key={invite.id} className="text-sm text-slate-500">Convite pendente: {invite.email} ({invite.role})</p>)}</div></div>}
+
+        {tab === 'brand' && <div className="space-y-5"><div><h3 className="font-bold text-lg">White label do cliente</h3><p className="text-sm text-slate-500 mt-1">O {PRODUCT_NAME} permanece um produto Consult Services. A logo e as cores personalizam o ambiente do cliente.</p></div><div className="grid lg:grid-cols-[1fr_1.1fr] gap-5">
+          <section className="space-y-4"><div className="border rounded-xl p-4 flex items-center gap-4 min-h-28"><div className="w-24 h-20 flex items-center justify-center rounded-xl border bg-white p-2">{settings.branding.logoUrl ? <img src={settings.branding.logoUrl} alt="Logo do cliente" className="max-w-full max-h-full object-contain" /> : <Palette />}</div><label className={`text-sm font-bold family-accent-text ${uploading ? 'opacity-50' : 'cursor-pointer'}`}><Upload className="inline w-4 h-4 mr-1" />{uploading ? 'Enviando...' : 'Enviar logo'}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={!canManage || uploading} onChange={selectLogo} /></label></div><label className="block text-sm font-semibold">Nome do cliente exibido<input disabled={!canManage} className="mt-1 w-full border rounded-lg p-3 font-normal" value={settings.branding.displayName} onChange={event => updateBrand({ displayName: event.target.value })} /></label><div className="grid grid-cols-2 gap-4"><label className="text-sm font-semibold">Cor principal<input disabled={!canManage} type="color" className="mt-1 w-full h-12 border p-1" value={settings.branding.primaryColor} onChange={event => updateBrand({ primaryColor: event.target.value, sidebarColor: undefined, softColor: undefined, contrastColor: undefined })} /></label><label className="text-sm font-semibold">Cor de destaque<input disabled={!canManage} type="color" className="mt-1 w-full h-12 border p-1" value={settings.branding.accentColor} onChange={event => updateBrand({ accentColor: event.target.value, sidebarColor: undefined, softColor: undefined, contrastColor: undefined })} /></label></div>{canManage && <div className="flex flex-wrap gap-2"><Button disabled={uploading} onClick={save} className="family-primary-bg">Salvar identidade</Button><Button disabled={uploading} onClick={restoreConsult} variant="secondary"><RotateCcw className="w-4 h-4 mr-2" />Restaurar Consult Services</Button></div>}</section>
+          <section>
+            <div className="mb-2"><strong>Prévia do sistema</strong><p className="text-xs text-slate-500">Valide a aplicação da marca antes de salvar.</p></div>
+            <div className="h-80 overflow-hidden rounded-2xl border shadow-sm bg-slate-100 flex">
+              <aside className="w-32 text-white p-3" style={{ backgroundColor: palette.sidebarColor }}>
+                <div className="h-16 rounded-lg bg-white flex items-center justify-center p-2">{settings.branding.logoUrl ? <img src={settings.branding.logoUrl} alt="Logo na prévia" className="max-h-full max-w-full object-contain" /> : null}</div>
+                <p className="mt-4 text-sm font-bold">{PRODUCT_NAME}</p><p className="mt-1 text-[8px] opacity-80">{PRODUCT_SUBTITLE}</p><p className="mt-3 text-[7px] opacity-70">{PRODUCT_OWNER}</p>
+                {['Visão geral', 'Transações', 'Orçamento', 'Relatórios'].map((item, index) => <div key={item} className={`mt-4 rounded-md px-2 py-1 text-[8px] ${index === 0 ? 'bg-white/20' : ''}`}>{item}</div>)}
+              </aside>
+              <div className="flex-1 p-4">
+                <p className="text-[9px] uppercase font-bold" style={{ color: settings.branding.accentColor }}>{settings.branding.displayName}</p><strong className="text-sm">Visão geral financeira</strong>
+                <div className="grid grid-cols-2 gap-2 mt-4">{['Receitas', 'Despesas', 'Saldo', 'Previsto'].map(item => <div key={item} className="rounded-lg border bg-white p-3"><p className="text-[7px] text-slate-500">{item}</p><strong className="text-xs" style={{ color: settings.branding.primaryColor }}>R$ 0,00</strong></div>)}</div>
+                <div className="mt-3 h-24 rounded-lg border bg-white p-3"><div className="h-2 w-20 rounded" style={{ backgroundColor: settings.branding.accentColor }} /><div className="mt-3 h-2 w-full rounded bg-slate-100" /><div className="mt-2 h-2 w-3/4 rounded bg-slate-100" /></div>
+              </div>
+            </div>
+          </section>
+        </div></div>}
+
+        {tab === 'plan' && <div className="space-y-5"><h3 className="font-bold text-lg">Plano e assinatura</h3><div className="grid sm:grid-cols-3 gap-3"><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">PLANO</span><strong className="block text-xl capitalize">{settings.plan}</strong></div><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">STATUS</span><strong className="block text-xl capitalize">{settings.status}</strong></div><div className="border rounded-xl p-4"><span className="text-xs text-slate-500">USUÁRIOS</span><strong className="block text-xl">{settings.licensedUsers}</strong></div></div><p className="text-sm text-slate-500">A contratação e alteração do plano serão vinculadas ao meio de pagamento na próxima etapa comercial.</p></div>}
+        {message && <p className="mt-5 p-3 rounded-lg family-soft-bg family-accent-text text-sm">{message}</p>}
+      </main></div>
+  </div></div>;
 };

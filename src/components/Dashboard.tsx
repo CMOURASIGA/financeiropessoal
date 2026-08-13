@@ -11,7 +11,8 @@ import { UserGuide } from './UserGuide';
 import { CategoryManager } from './CategoryManager';
 import { BudgetPlanner } from './BudgetPlanner';
 import { CommercialSettingsModal } from './CommercialSettings';
-import { commercialService } from '../services/commercialService';
+import { commercialService, CONSULT_SERVICES_BRAND, HouseholdBrand } from '../services/commercialService';
+import { PRODUCT_NAME, PRODUCT_OWNER, PRODUCT_SUBTITLE } from '../lib/brand';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { RefreshCw, Search, X, TableProperties, HelpCircle, Settings, ChevronDown, CalendarRange, Home, LogOut } from 'lucide-react';
@@ -30,7 +31,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [isCommercialSettingsOpen, setIsCommercialSettingsOpen] = useState(false);
-  const [brand, setBrand] = useState<{displayName:string;logoUrl:string}>({displayName:'MeuLar Finanças',logoUrl:''});
+  const [brand, setBrand] = useState<HouseholdBrand>(CONSULT_SERVICES_BRAND);
   
   const [filters, setFilters] = useState<FilterState>({
     type: 'all',
@@ -147,20 +148,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
       <BudgetPlanner isOpen={isBudgetOpen} onClose={() => setIsBudgetOpen(false)} categories={categories} transactions={transactions} />
       <CommercialSettingsModal open={isCommercialSettingsOpen} onClose={() => setIsCommercialSettingsOpen(false)} onBrandUpdated={loadBrand} />
 
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white border-b sticky top-0 z-40 shadow-sm family-brand-border">
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm overflow-hidden" style={{backgroundColor:'var(--family-primary, #059669)'}}>
-              {brand.logoUrl ? <img src={brand.logoUrl} alt="Logo" className="w-full h-full object-contain bg-white p-1"/> : <Home className="text-white w-5 h-5" />}
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-14 rounded-xl flex items-center justify-center shadow-sm overflow-hidden border bg-white p-1 family-brand-border">
+              {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.displayName} className="w-full h-full object-contain"/> : <Home className="family-accent-text w-6 h-6" />}
             </div>
-            <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">{brand.displayName}</h1><p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">{householdName || 'Controle familiar'}</p></div>
+            <div>
+              <p className="text-[9px] uppercase tracking-[.2em] font-black family-accent-text">{brand.displayName}</p>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">{PRODUCT_NAME}</h1>
+              <p className="text-[10px] text-slate-500 font-semibold">{PRODUCT_SUBTITLE}</p>
+              <p className="text-[8px] text-slate-400">{PRODUCT_OWNER} · {householdName || 'Controle familiar'}</p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
             <Button onClick={() => setIsGuideOpen(true)} variant="ghost" size="sm" title="Ajuda"><HelpCircle className="w-5 h-5 text-slate-500" /></Button>
             <Button onClick={() => setIsCategoryManagerOpen(true)} variant="secondary" size="sm" title="Categorias" className="gap-2"><Settings className="w-4 h-4" /> <span className="hidden sm:inline">Categorias</span></Button>
             {cloudEnabled && <Button onClick={() => setIsCommercialSettingsOpen(true)} variant="secondary" size="sm" title="Cliente, usuários e plano" className="gap-2"><Settings className="w-4 h-4" /> <span className="hidden sm:inline">Configurações</span></Button>}
-            <Button onClick={() => setIsBudgetOpen(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><CalendarRange className="w-4 h-4" /> Orçamento anual</Button>
+            <Button onClick={() => setIsBudgetOpen(true)} className="gap-2 family-primary-bg"><CalendarRange className="w-4 h-4" /> Orçamento anual</Button>
             <Button onClick={() => setIsReportOpen(true)} variant="secondary" className="gap-2"><TableProperties className="w-4 h-4 text-blue-600" /> Relatório Anual</Button>
             <div className="h-6 w-px bg-slate-200 hidden md:block mx-1"></div>
             <div className="relative group">
