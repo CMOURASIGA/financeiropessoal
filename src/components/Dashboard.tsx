@@ -13,6 +13,8 @@ import { BudgetPlanner } from './BudgetPlanner';
 import { CommercialSettingsModal } from './CommercialSettings';
 import { commercialService, CONSULT_SERVICES_BRAND, HouseholdBrand } from '../services/commercialService';
 import { PRODUCT_NAME, PRODUCT_OWNER, PRODUCT_SUBTITLE } from '../lib/brand';
+import { DEMO_MODE } from '../lib/demo';
+import { DemoNotice } from './DemoNotice';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { RefreshCw, Search, X, TableProperties, HelpCircle, Settings, ChevronDown, CalendarRange, Home, LogOut } from 'lucide-react';
@@ -178,6 +180,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
           </div>
         </div>
       </header>
+      {DEMO_MODE && <DemoNotice />}
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         <SummaryCards stats={stats} />

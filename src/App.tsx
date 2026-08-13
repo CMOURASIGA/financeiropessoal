@@ -8,10 +8,12 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { transactionService } from './services/transactionService';
 import { commercialService } from './services/commercialService';
 import { PRODUCT_NAME } from './lib/brand';
+import { DEMO_MODE, seedDemoData } from './lib/demo';
 
 type ViewState = 'landing' | 'dashboard';
 
 function App() {
+  if (DEMO_MODE) seedDemoData();
   const [currentView, setCurrentView] = useState<ViewState>('landing');
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [user, setUser] = useState<User | null>(null);
@@ -48,7 +50,7 @@ function App() {
 
   return <>
     {currentView === 'landing' && <Landing onEnter={() => setCurrentView('dashboard')} />}
-    {currentView === 'dashboard' && <Dashboard householdName={household?.name} cloudEnabled={Boolean(supabase)} onSignOut={supabase ? () => supabase.auth.signOut() : undefined} />}
+    {currentView === 'dashboard' && <Dashboard householdName={DEMO_MODE ? 'Família Demonstração' : household?.name} cloudEnabled={Boolean(supabase)} onSignOut={supabase ? () => supabase.auth.signOut() : undefined} />}
   </>;
 }
 

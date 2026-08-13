@@ -4,6 +4,7 @@ import { Button } from './ui/Button';
 import { ArrowRight, CheckCircle2, HelpCircle, Home } from 'lucide-react';
 import { UserGuide } from './UserGuide';
 import { COMPANY_NAME, CONSULT_LOGO_URL, PRODUCT_NAME, PRODUCT_OWNER, PRODUCT_SUBTITLE } from '../lib/brand';
+import { DEMO_MODE } from '../lib/demo';
 
 interface LandingProps {
   onEnter: () => void;
@@ -21,6 +22,7 @@ export const Landing: React.FC<LandingProps> = ({ onEnter }) => {
       <UserGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
       <div className="max-w-4xl w-full text-center space-y-8 relative z-10">
+        {DEMO_MODE && <div className="mx-auto w-fit rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold uppercase tracking-widest text-amber-800">Versão de demonstração · dados locais neste navegador</div>}
         <div className="space-y-4">
           <img src={CONSULT_LOGO_URL} alt={COMPANY_NAME} className="h-20 md:h-24 w-auto max-w-64 object-contain mx-auto" />
           <div className="inline-flex items-center gap-2 family-soft-bg family-accent-text px-4 py-1.5 rounded-full text-sm font-semibold mb-2 family-brand-border border"><Home className="w-4 h-4" /> {PRODUCT_NAME} · {PRODUCT_SUBTITLE}</div>
