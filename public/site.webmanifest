@@ -1,0 +1,17 @@
+{
+  "name": "MeuLar Finanças",
+  "short_name": "MeuLar",
+  "description": "Controle financeiro pessoal e familiar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#08497f",
+  "icons": [
+    {
+      "src": "/consult-services-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
