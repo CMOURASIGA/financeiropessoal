@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Tag, AlertCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+import { ConfirmationDialog } from './ui/ConfirmationDialog';
 
 interface CategoryManagerProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface CategoryManagerProps {
 export const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, categories, onSave }) => {
   const [newCategory, setNewCategory] = useState('');
   const [localCategories, setLocalCategories] = useState(categories);
+  const [minimumCategoryWarning, setMinimumCategoryWarning] = useState(false);
 
   // Sync with props when categories update or modal opens
   useEffect(() => {
@@ -34,7 +36,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClos
 
   const handleRemove = (cat: string) => {
     if (localCategories.length <= 1) {
-      alert("Você precisa ter pelo menos uma categoria cadastrada.");
+      setMinimumCategoryWarning(true);
       return;
     }
     setLocalCategories(localCategories.filter(c => c !== cat));
@@ -50,7 +52,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <><div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <Card className="max-w-md w-full shadow-2xl border-none">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
           <div className="flex items-center gap-2">
@@ -113,5 +115,15 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClos
         </div>
       </Card>
     </div>
+    <ConfirmationDialog
+      open={minimumCategoryWarning}
+      title="Categoria obrigatória"
+      message="Você precisa manter pelo menos uma categoria cadastrada."
+      confirmLabel="Entendi"
+      cancelLabel={null}
+      onConfirm={() => setMinimumCategoryWarning(false)}
+      onCancel={() => setMinimumCategoryWarning(false)}
+    />
+    </>
   );
 };
