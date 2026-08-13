@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+:root { --family-primary: #059669; --family-accent: #0f766e; }
+
 /* Custom Scrollbar for nicer aesthetics */
 ::-webkit-scrollbar {
   width: 8px;

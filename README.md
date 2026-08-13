@@ -25,6 +25,7 @@ Execute no SQL Editor do Supabase, nesta ordem:
 1. `001_personal_finance_schema.sql`
 2. `002_budget_vs_actual_view.sql`
 3. `003_data_api_permissions.sql`
+4. `004_commercial_saas_foundation.sql`
 
 ## Próxima integração
 

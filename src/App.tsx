@@ -6,6 +6,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { HouseholdSetup } from './components/HouseholdSetup';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { transactionService } from './services/transactionService';
+import { commercialService } from './services/commercialService';
 
 type ViewState = 'landing' | 'dashboard';
 
@@ -16,7 +17,12 @@ function App() {
   const [household, setHousehold] = useState<{ id: string; name: string } | null>(null);
 
   const loadHousehold = async (currentUser: User) => {
+    await commercialService.acceptInvites();
     const result = await transactionService.initializeCloudContext();
+    if (result) {
+      const commercial = await commercialService.getSettings();
+      document.title = commercial.branding.displayName;
+    }
     setHousehold(result);
     setUser(currentUser);
     setLoading(false);
@@ -41,7 +47,7 @@ function App() {
 
   return <>
     {currentView === 'landing' && <Landing onEnter={() => setCurrentView('dashboard')} />}
-    {currentView === 'dashboard' && <Dashboard householdName={household?.name} onSignOut={supabase ? () => supabase.auth.signOut() : undefined} />}
+    {currentView === 'dashboard' && <Dashboard householdName={household?.name} cloudEnabled={Boolean(supabase)} onSignOut={supabase ? () => supabase.auth.signOut() : undefined} />}
   </>;
 }
 
