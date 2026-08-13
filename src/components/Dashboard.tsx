@@ -17,6 +17,7 @@ import { DEMO_MODE } from '../lib/demo';
 import { DemoNotice } from './DemoNotice';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+import { ConfirmationDialog } from './ui/ConfirmationDialog';
 import { RefreshCw, Search, X, TableProperties, HelpCircle, Settings, ChevronDown, CalendarRange, Home, LogOut } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -34,6 +35,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [isCommercialSettingsOpen, setIsCommercialSettingsOpen] = useState(false);
   const [brand, setBrand] = useState<HouseholdBrand>(CONSULT_SERVICES_BRAND);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   
   const [filters, setFilters] = useState<FilterState>({
     type: 'all',
@@ -125,11 +127,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
     setEditingTransaction(null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Deseja realmente excluir esta transação?')) {
-      await transactionService.delete(id);
-      await loadData();
-    }
+  const confirmDelete = async () => {
+    if (!transactionToDelete) return;
+    await transactionService.delete(transactionToDelete);
+    setTransactionToDelete(null);
+    await loadData();
   };
 
   const handleSaveCategories = async (newCats: string[]) => {
@@ -149,6 +151,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
       />
       <BudgetPlanner isOpen={isBudgetOpen} onClose={() => setIsBudgetOpen(false)} categories={categories} transactions={transactions} />
       <CommercialSettingsModal open={isCommercialSettingsOpen} onClose={() => setIsCommercialSettingsOpen(false)} onBrandUpdated={loadBrand} />
+      <ConfirmationDialog
+        open={Boolean(transactionToDelete)}
+        title="Excluir transação?"
+        message="Esta transação será removida definitivamente. Deseja continuar?"
+        confirmLabel="Excluir transação"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setTransactionToDelete(null)}
+      />
 
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm family-brand-border">
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -236,7 +247,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ householdName, cloudEnable
                 <h2 className="text-xl font-bold text-slate-800">Transações</h2>
                 <div className="text-xs font-bold text-slate-400 bg-slate-200 px-2 py-1 rounded-full">{filteredTransactions.length} registros</div>
               </div>
-              <TransactionList transactions={filteredTransactions} isLoading={loading} onEdit={setEditingTransaction} onDelete={handleDelete} />
+              <TransactionList transactions={filteredTransactions} isLoading={loading} onEdit={setEditingTransaction} onDelete={setTransactionToDelete} />
             </div>
           </div>
 
