@@ -22,7 +22,7 @@ export const AnnualReport: React.FC<AnnualReportProps> = ({ transactions, isOpen
     
     // Helper to filter by year and valid status
     const yearlyTransactions = transactions.filter(t => {
-      const tYear = new Date(t.date).getFullYear();
+      const [tYear] = t.date.split('-').map(Number);
       // We include pending transactions in the report for projection, 
       // but you can filter t.status === 'paid' if you only want realized values.
       return tYear === year; 
@@ -37,7 +37,8 @@ export const AnnualReport: React.FC<AnnualReportProps> = ({ transactions, isOpen
     const totalExpensePerMonth = Array(12).fill(0);
 
     yearlyTransactions.forEach(t => {
-      const monthIndex = new Date(t.date).getMonth(); // 0 = Jan
+      const [, transactionMonth] = t.date.split('-').map(Number);
+      const monthIndex = transactionMonth - 1; // 0 = Jan, sem conversão de fuso horário
       const targetObj = t.type === 'income' ? incomeRows : expenseRows;
       
       if (!targetObj[t.category]) {
